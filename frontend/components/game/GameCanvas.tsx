@@ -70,6 +70,7 @@ export default function GameCanvas(props: Props) {
         preload() {
           for (let i = 0; i < 6; i++) this.load.image(`daisy-${i}`, `/assets-v2/daisy-${i}.png`);
           for (let i = 0; i < 4; i++) this.load.image(`soil-${i}`, `/assets-v2/soil-${i}.png`);
+          this.load.spritesheet("grass", "/assets-v2/grass-sheet.png", { frameWidth: 120, frameHeight: 146 });
           this.load.image("packet", "/assets-v2/daisy-packet.png");
           this.load.image("hoe", "/assets-v2/hoe.png");
           this.load.image("water", "/assets-v2/watering-can.png");
@@ -81,7 +82,7 @@ export default function GameCanvas(props: Props) {
         create() {
           // A click must never count as a drag.
           this.input.dragDistanceThreshold = 10;
-          console.log("[GardenScene] build: deferred-drag-safety-v3");
+          console.log("[GardenScene] build: cozy-grass-instant-plant-v4");
           this.drawBackdrop();
           this.anims.create({
             key: "daisy-breeze",
@@ -89,6 +90,13 @@ export default function GameCanvas(props: Props) {
             frameRate: 1.6,
             repeat: -1,
             repeatDelay: 2400,
+            yoyo: true,
+          });
+          this.anims.create({
+            key: "grass-sway",
+            frames: this.anims.generateFrameNumbers("grass", { start: 0, end: 21 }),
+            frameRate: 10,
+            repeat: -1,
             yoyo: true,
           });
           this.worldLayer = this.add.container(0, 0);
@@ -154,7 +162,35 @@ export default function GameCanvas(props: Props) {
             this.tweens.add({ targets: cloud, x: cloud.x + 28, duration: 8500 + i * 1400, yoyo: true, repeat: -1, ease: "Sine.inOut" });
           }
           this.add.ellipse(W / 2, 620, 900, 250, 0x95c77c, 1);
+          this.drawGrass();
           this.add.text(34, 178, "CANDY'S GARDEN", { fontFamily: "Arial", fontSize: "15px", fontStyle: "bold", color: "#43613c", letterSpacing: 2 });
+        }
+
+        /** Scattered grass tufts along the meadow. Every tuft gets its own
+         * start frame, animation speed, scale and facing, so a field of
+         * them never sways in creepy unison - the single cheapest trick
+         * for making repeated sprites read as a living field. */
+        drawGrass() {
+          const spots: Array<[number, number, number]> = [
+            [60, 592, 0.52], [148, 618, 0.62], [246, 600, 0.46],
+            [338, 626, 0.58], [470, 622, 0.54], [566, 600, 0.48],
+            [654, 620, 0.62], [726, 596, 0.5], [24, 548, 0.4],
+            [400, 648, 0.44], [520, 650, 0.42], [700, 652, 0.46],
+          ];
+          spots.forEach(([x, y, scale], i) => {
+            const tuft = this.add
+              .sprite(x, y, "grass")
+              .setOrigin(0.5, 1)
+              .setScale(scale)
+              .setDepth(1)
+              .setAlpha(0.9);
+            if (i % 2 === 0) tuft.setFlipX(true);
+            tuft.setTint(i % 3 === 0 ? 0x86bf6b : i % 3 === 1 ? 0x9ad07d : 0x78b25f);
+            tuft.play({ key: "grass-sway", startFrame: (i * 7) % 22 });
+            // Per-tuft speed jitter so the loops drift apart over time
+            // instead of re-syncing every cycle.
+            tuft.anims.timeScale = 0.55 + ((i * 37) % 60) / 100;
+          });
         }
 
         redraw(data: Props) {
@@ -280,7 +316,24 @@ export default function GameCanvas(props: Props) {
             this.activeIcon = null;
             icon.setData("dragging", false);
             this.clearReadyState();
-            if (canUse) this.perform(card.action, target.x, target.y);
+            if (canUse) {
+              // Land the action AT the tile, immediately - the icon
+              // shrinks into the soil where it was dropped instead of
+              // flying home first and only then showing a result. The
+              // server round-trip still happens underneath, but the
+              // player sees the plant take straight away.
+              this.showOptimisticPlant(card.action, target);
+              this.tweens.add({
+                targets: icon, x: target.tile.x, y: target.tile.y,
+                scaleX: home.scaleX * 0.25, scaleY: home.scaleY * 0.25, alpha: 0,
+                duration: 160, ease: "Quad.in",
+                onComplete: () => {
+                  icon.setPosition(home.x, home.y).setScale(home.scaleX, home.scaleY).setAlpha(1).setDepth(24);
+                },
+              });
+              this.perform(card.action, target.x, target.y);
+              return;
+            }
             this.tweens.add({ targets: icon, x: home.x, y: home.y, scaleX: home.scaleX, scaleY: home.scaleY, duration: 220, ease: "Back.out", onComplete: () => icon.setDepth(24) });
           });
           // Covers releasing the pointer outside THIS icon's hit area.
@@ -323,6 +376,26 @@ export default function GameCanvas(props: Props) {
           });
         }
 
+        /** Draws the result of an action instantly, before the server has
+         * confirmed it. The next redraw() replaces this with real state;
+         * if the call fails, redraw() simply won't include it. */
+        showOptimisticPlant(action: Action, t: any) {
+          const burst = this.add
+            .particles(t.tile.x, t.tile.y, "seed", { speed: { min: 35, max: 95 }, scale: { start: 0.06, end: 0 }, lifespan: 520, quantity: 8, emitting: false })
+            .setDepth(50);
+          burst.explode(10);
+          this.time.delayedCall(650, () => burst.destroy());
+
+          if (action.type !== "seed" || t.plant) return;
+          const ghost = this.add
+            .sprite(t.tile.x, t.tile.y + 48, "seed")
+            .setScale(0.05)
+            .setDepth(5)
+            .setOrigin(0.5, 1);
+          this.worldLayer.add(ghost);
+          this.tweens.add({ targets: ghost, scaleX: 0.25, scaleY: 0.25, duration: 220, ease: "Back.out" });
+        }
+
         async perform(action: Action, x: number, y: number) {
           if (this.busy) return;
           const t = this.tiles.find(q => q.x === x && q.y === y);
@@ -333,8 +406,6 @@ export default function GameCanvas(props: Props) {
             else if (action.type === "water" && t.plant) await latest.current.onWater(t.plant.id);
             else if (action.type === "shovel" && t.plant) await latest.current.onDigUp(t.plant.id);
             else await latest.current.onTill(x, y);
-            const burst = this.add.particles(t.tile.x, t.tile.y, "seed", { speed: { min: 35, max: 95 }, scale: { start: 0.06, end: 0 }, lifespan: 520, quantity: 8, emitting: false }).setDepth(50);
-            burst.explode(10); this.time.delayedCall(650, () => burst.destroy());
             latest.current.onMessage?.(action.type === "seed" ? "Planted! Your little seed is settling in." : action.type === "water" ? "Freshly watered — watch the soil deepen." : action.type === "shovel" ? "Safely returned to your seed shelf." : "A new patch is ready.", "good");
             this.selected = null;
           } catch { this.cancelSelection(); latest.current.onMessage?.("Nothing changed. Please try again when you’re ready.", "soft"); }
@@ -342,7 +413,21 @@ export default function GameCanvas(props: Props) {
         }
       }
 
-      const game = new Phaser.Game({ type: Phaser.AUTO, parent: containerRef.current, width: W, height: H, backgroundColor: "#dff1d7", transparent: false, scene: [GardenScene], scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH } });
+      const game = new Phaser.Game({
+        type: Phaser.AUTO,
+        parent: containerRef.current,
+        width: W,
+        height: H,
+        backgroundColor: "#dff1d7",
+        transparent: false,
+        scene: [GardenScene],
+        // capture:false stops Phaser calling preventDefault on touch, so a
+        // vertical swipe that starts on the canvas still scrolls the page
+        // instead of being swallowed by the game. Paired with
+        // `touch-action: pan-y` on the canvas in CSS.
+        input: { touch: { capture: false } },
+        scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+      });
       if (cancelled) { game.destroy(true); return; }
       gameRef.current = game;
     })();
