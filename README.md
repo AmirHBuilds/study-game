@@ -76,6 +76,16 @@ belongs to the achievements system below.
 - Visual/atmosphere polish: real art, day/night tint, wind PNG overlay,
   grass sway, growth-stage sprites instead of a text label
 
+## Current garden interaction pass
+
+- Illustrated four-stage soil moisture system: dry, damp, wet, freshly watered
+- Six-frame single-daisy breeze animation (no transform-only rocking)
+- Illustrated watering can, hoe, shovel, and seed packet assets
+- Dragging moves only the tool/seed art; its tray card stays anchored
+- Shovel is temporarily available as a debug tool and returns a planted flower
+  to inventory. It is intended to become achievement-gated later.
+- All nine starter plots begin prepared but dry.
+
 ## Project layout
 
 ```

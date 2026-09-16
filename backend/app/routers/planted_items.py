@@ -106,3 +106,38 @@ def water_item(item_id: uuid.UUID, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(item)
     return _to_response(db, item)
+
+
+@router.post("/{item_id}/dig-up")
+def dig_up_item(item_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Debug-access shovel: safely returns a planted flower to inventory.
+
+    This endpoint is intentionally available during development. Later the
+    shovel can be achievement-gated without changing the placement model.
+    """
+    item = db.get(PlantedItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Planted item not found")
+
+    inventory_item = (
+        db.query(InventoryItem)
+        .filter(
+            InventoryItem.user_id == item.user_id,
+            InventoryItem.seed_type_id == item.seed_type_id,
+            InventoryItem.banked_minutes.is_(None),
+        )
+        .first()
+    )
+    if inventory_item:
+        inventory_item.quantity += 1
+    else:
+        db.add(
+            InventoryItem(
+                user_id=item.user_id,
+                seed_type_id=item.seed_type_id,
+                quantity=1,
+            )
+        )
+    db.delete(item)
+    db.commit()
+    return {"success": True, "returned_seed_type_id": str(item.seed_type_id)}

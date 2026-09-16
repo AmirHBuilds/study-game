@@ -67,11 +67,12 @@ def _seed_defaults() -> None:
                 )
             )
 
-        # Small starter patch (3x3, center of the 9x9 grid) tilled by
-        # default so there's something plantable before she's earned a hoe.
+        # The starting garden is a small 3x3 patch, fully tilled from day
+        # one - a bigger garden is a future achievement/expansion, not
+        # part of this default grid.
         if not db.query(PlotState).filter_by(user_id=user.id).first():
-            for x in range(3, 6):
-                for y in range(3, 6):
+            for x in range(0, 3):
+                for y in range(0, 3):
                     db.add(PlotState(user_id=user.id, plot_x=x, plot_y=y, tilled=True))
 
         db.commit()

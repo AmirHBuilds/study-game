@@ -15,6 +15,7 @@ import {
 interface SeedType {
   id: string;
   display_name: string;
+  category: string;
   earn_cost_minutes: number;
   unlock_cost_minutes: number;
 }
@@ -41,7 +42,7 @@ export default function FocusPage() {
   useEffect(() => {
     getMe().then((u) => setUserId(u.id));
     listSeedTypes().then((types: SeedType[]) =>
-      setSeedTypes(types.filter((t) => t.unlock_cost_minutes === 0))
+      setSeedTypes(types.filter((t) => t.category === "seed" && t.unlock_cost_minutes === 0))
     );
   }, []);
 
@@ -124,26 +125,34 @@ export default function FocusPage() {
       </Link>
 
       {stage === "select" && (
-        <>
-          <h1>What do you want to grow today?</h1>
+        <section className="focus-panel">
+          <p className="kicker">THE NURSERY</p>
+          <h1>What would feel lovely to grow?</h1>
+          <p className="focus-intro">Choose one small intention. There is no perfect session—only time you set aside for yourself.</p>
           {seedTypes.length === 0 && <p className="muted">Loading...</p>}
+          <div className="reward-grid">
           {seedTypes.map((seed) => (
             <button
               key={seed.id}
-              className="btn btn-secondary btn-block"
+              className="reward-card"
               onClick={() => {
                 setChosen(seed);
                 setStage("confirm");
               }}
             >
-              {seed.display_name} — {seed.earn_cost_minutes} min focus
+              <img src={seed.display_name === "Daisy" ? "/assets-v2/daisy-packet.png" : "/assets-v2/hoe.png"} alt="" />
+              <span><strong>{seed.display_name}</strong><small>{seed.earn_cost_minutes} min gentle focus</small></span>
+              <b>Choose</b>
             </button>
           ))}
-        </>
+          </div>
+          <p className="reassurance"><span>♡</span> Tired today? It’s okay to visit your garden without starting a session.</p>
+        </section>
       )}
 
       {stage === "confirm" && chosen && (
-        <div className="card">
+        <div className="card focus-confirm">
+          <img className="confirm-art" src={chosen.display_name === "Daisy" ? "/assets-v2/daisy-packet.png" : "/assets-v2/hoe.png"} alt="" />
           <h1>{chosen.display_name} selected</h1>
           <p className="muted">
             {chosen.earn_cost_minutes} minute{chosen.earn_cost_minutes === 1 ? "" : "s"} of
@@ -159,7 +168,8 @@ export default function FocusPage() {
       )}
 
       {stage === "active" && chosen && (
-        <div className="card" style={{ textAlign: "center" }}>
+        <div className="card active-focus" style={{ textAlign: "center" }}>
+          <div className="nursery-orb"><img src={chosen.display_name === "Daisy" ? "/assets-v2/daisy-packet.png" : "/assets-v2/hoe.png"} alt="Your chosen reward waiting in the nursery" /></div>
           <h1>Focusing on {chosen.display_name}</h1>
           <p className="timer">
             {Math.floor(remainingSeconds / 60)}:
@@ -175,7 +185,7 @@ export default function FocusPage() {
       )}
 
       {stage === "result" && result && (
-        <div className="card" style={{ textAlign: "center" }}>
+        <div className="card focus-result" style={{ textAlign: "center" }}>
           <h1>{result.success ? "✨ Earned!" : "Not this time"}</h1>
           <p className="muted">{result.message}</p>
           <button className="btn" onClick={reset}>

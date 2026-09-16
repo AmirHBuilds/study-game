@@ -51,6 +51,9 @@ export const plantItem = (payload: PlantItemPayload) =>
 export const waterPlant = (plantedItemId: string) =>
   request(`/planted-items/${plantedItemId}/water`, { method: "POST" });
 
+export const digUpPlant = (plantedItemId: string) =>
+  request(`/planted-items/${plantedItemId}/dig-up`, { method: "POST" });
+
 export const useHoe = (payload: UseHoePayload) =>
   request("/tools/hoe/use", { method: "POST", body: JSON.stringify(payload) });
 

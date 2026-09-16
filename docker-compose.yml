@@ -39,6 +39,11 @@ services:
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Docker bind mounts on Windows/macOS don't always emit native
+      # filesystem change events - without polling, Next's dev server
+      # can silently keep serving stale code after a file is edited.
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - backend
     volumes:
